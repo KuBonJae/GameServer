@@ -4,64 +4,51 @@ using System.Threading;
 
 namespace ServerCore
 {
-    // 메모리 배리어
-    // 1. 코드 재배치 억제
-    // 2. 가시성
-
-    // 1. Full Memory Barrier = Store/Load 둘다 막기 (read / write )
-    // 2. Store Memory Barrier = Store만 막기
-    // 3. Load Memory Barrier = Load만 막기
-
     class Program
     {
-        static int x = 0;
-        static int y = 0;
-        static int r1 = 0;
-        static int r2 = 0;
+        // Race Condition -> 공유 자원에 무질서하게 접근한다
+        
+        static int number = 0;
 
         static void Thread_1()
         {
-            y = 1;
+            for(int i=0; i<10000; i++)
+            {
+                int now = number; // 이미 다른 곳에서 작업하고 있을 수 있어 원하는 값 받아오기 힘들 수 있음
+                int after = Interlocked.Increment(ref number); // return 값으로 받아오면 원하는 값 받아오기 보장
+                
+                // 원자성이 없으면 문제 (한번에 일어나야하는 작업 뭉탱이)
+                //number++;
 
-            Thread.MemoryBarrier(); // 선을 그어버림. y=1; 이 아래로 내려갈 수 없고, r1=x; 가 위로 올라갈 수 없다.
-                                    // 데이터에 내용 쓰기, 내용 불러오기를 해서 동기화 작업을 진행하는 것도 함
-
-            r1 = x;
-            // 순서 연관성이 없기 때문에 하드웨어적으로 다음과 같이 변경될 수도 있다
-            // r1 = x; 
-            // y = 1;
+                // number++은 어셈블리 코드 상 다음과 같이 풀어쓸 수 있다.
+                //int temp = number;
+                //temp += 1;
+                //number = temp; // 여기에 대입하는 숫자를 누가 선점해서 넣냐에 따라 결과값이 달라지게 될 것
+                
+            }
         }
 
-        static void Thread_2()
+        static void Thread_2() 
         {
-            x = 1;
-
-            Thread.MemoryBarrier();
-
-
-            r2 = y;
+            for (int i = 0; i < 10000; i++)
+            {
+                Interlocked.Decrement(ref number);
+                //number--;
+            }
         }
-
         static void Main(string[] args)
         {
-            int count = 0;
-            while(true)
-            {
-                count++;
-                x = y = r1 = r2 = 0;
+            number++;
 
-                Task t1 = new Task(Thread_1);
-                Task t2 = new Task(Thread_2);
-                t1.Start(); 
-                t2.Start();
+            Task t1 = new Task(Thread_1);
+            Task t2 = new Task(Thread_2);
 
-                Task.WaitAll(t1, t2);
+            t1.Start();
+            t2.Start();
 
-                if (r1 == 0 && r2 == 0)
-                    break;
-            }
+            Task.WaitAll(t1, t2);
 
-            Console.WriteLine($"{count}번만에 빠져나옴");
+            Console.WriteLine(number);
         }
     }
 }
