@@ -17,14 +17,12 @@ namespace ServerCore
 
                 if (Interlocked.CompareExchange(ref _locked, 1, 0) == 0)
                     break;
+
+                // 잠시 쉬었다 온다
+                Thread.Sleep(1); // 무조건 일정 시간 강제 휴식
+                Thread.Sleep(0); // 조건부 양보 => 우선순위 낮은 작업에게는 양보 불가능
+                Thread.Yield(); // 관대한 양보 => 모두에게 양보 가능
             }
-            // _lock 확인 -> 반복문 탈출 -> 변수 변경 => 작업이 하나로 이루어지지 않음 (원자성 X)
-            //while(_locked)
-            //{
-            //    // 잠김 해제 대기
-            //}
-            //
-            //_locked = true;
         }
 
         public void Release()
