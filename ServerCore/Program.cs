@@ -4,59 +4,70 @@ using System.Threading;
 
 namespace ServerCore
 {
+    class SpinLock
+    {
+        volatile int _locked = 0;
+        public void Acquire()
+        {
+            while(true)
+            {
+                //int original = Interlocked.Exchange(ref _locked, 1);
+                //if (original == 0)
+                //    break;
+
+                if (Interlocked.CompareExchange(ref _locked, 1, 0) == 0)
+                    break;
+            }
+            // _lock 확인 -> 반복문 탈출 -> 변수 변경 => 작업이 하나로 이루어지지 않음 (원자성 X)
+            //while(_locked)
+            //{
+            //    // 잠김 해제 대기
+            //}
+            //
+            //_locked = true;
+        }
+
+        public void Release()
+        {
+            // 본인 스스로만 자물쇠를 쥐고 있는게 확실한 상황이므로, 직접적으로 데이터를 건드려도 문제가 전혀 없다.
+            _locked = 0;
+        }
+    }
+
     class Program
     {
-        static int number = 0;
-        static object _obj = new object();
+        static int _num = 0;
+        static SpinLock _lock = new SpinLock();
 
-        static void Thread_1()
+        static void Thread1()
         {
-            try { } finally { } // 이걸 사용해서 무조건 Exit 시킬 수 있음
-
-            for(int i=0; i<10000; i++)
+            for(int i=0; i < 100000;i++)
             {
-                lock(_obj) // Monitor.Enter(_obj)과 같은 방식으로 내부 구현되어있다.
-                {
-                    number++;
-                }
-
-                //Monitor.Enter(_obj); // 문 잠구기
-                //
-                //number++;
-                //
-                //// return; // 이래버리면, _obj가 반환되지 않아 Thread_2가 무한 대기 (DeadLock) 상태가 되어버린다.
-                //
-                //Monitor.Exit(_obj); // 잠금 해제
+                _lock.Acquire();
+                _num++;
+                _lock.Release();
             }
         }
 
-        static void Thread_2() 
+        static void Thread2()
         {
-            for (int i = 0; i < 10000; i++)
+            for (int i = 0; i < 100000; i++)
             {
-                lock (_obj)
-                {
-                    number--;
-                }
-
-                //Monitor.Enter(_obj);
-                //
-                //number--;
-                //
-                //Monitor.Exit(_obj);
+                _lock.Acquire();
+                _num--;
+                _lock.Release();
             }
         }
         static void Main(string[] args)
         {
-            Task t1 = new Task(Thread_1);
-            Task t2 = new Task(Thread_2);
-
+            Task t1 = new Task(Thread1);
+            Task t2 = new Task(Thread2);
             t1.Start();
             t2.Start();
 
             Task.WaitAll(t1, t2);
 
-            Console.WriteLine(number);
+            Console.WriteLine(_num);
         }
     }
 }
