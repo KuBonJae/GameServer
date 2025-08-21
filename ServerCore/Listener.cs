@@ -11,12 +11,12 @@ namespace ServerCore
     class Listener
     {
         Socket _listenSocket;
-        Action<Socket> _onAcceptHandler; // 손님 소켓을 받았을 때, 실행할 함수 (콜백 방식)
+        Func<Session> _sessionFactory; // Session을 생성해줄 return 함수
 
-        public void Init(IPEndPoint endPoint, Action<Socket> onAcceptHandler)
+        public void Init(IPEndPoint endPoint, Func<Session> sessionFactory)
         {
             _listenSocket = new Socket(endPoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp); // TCP 소켓 생성
-            _onAcceptHandler += onAcceptHandler; // 인자로 들어온 action을 실행할 것이다 명시
+            _sessionFactory += sessionFactory; // 인자로 들어온 action을 실행할 것이다 명시
 
             // 문지기 교육 (가게의 입구 주소 입력)
             _listenSocket.Bind(endPoint);
@@ -43,8 +43,9 @@ namespace ServerCore
         {
             if (args.SocketError == SocketError.Success)
             {
-                // TODO
-                _onAcceptHandler?.Invoke(args.AcceptSocket); // 기존에 지정한 action 실행
+                Session session = _sessionFactory.Invoke();
+                session.Start(args.AcceptSocket);
+                session.OnConnected(args.RemoteEndPoint);
             }
             else
                 Console.WriteLine(args.SocketError.ToString());
