@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace ServerCore
 {
-    class Listener
+    public class Listener
     {
         Socket _listenSocket;
         Func<Session> _sessionFactory; // Session을 생성해줄 return 함수
