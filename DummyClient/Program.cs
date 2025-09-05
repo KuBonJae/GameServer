@@ -10,13 +10,31 @@ namespace DummyClient
 {
     class GameSession : Session
     {
+        public class Knight
+        {
+            public int hp;
+            public int attack;
+        }
+
         public override void OnConnected(EndPoint endPoint)
         {
             Console.WriteLine($"OnConnected bytes : {endPoint}");
 
             // 보낸다
-            byte[] sendBuffer = Encoding.UTF8.GetBytes("Hello Server!");
+            // Temp
+            //byte[] sendBuff = Encoding.UTF8.GetBytes("Hello Server!");
+            //
+            Knight knight = new Knight() { hp = 100, attack = 10 };
+
+            ArraySegment<byte> openSegment = SendBufferHelper.Open(4096);
+            byte[] buffer = BitConverter.GetBytes(knight.hp);
+            byte[] buffer2 = BitConverter.GetBytes(knight.attack);
+            Array.Copy(buffer, 0, openSegment.Array, openSegment.Offset, buffer.Length);
+            Array.Copy(buffer2, 0, openSegment.Array, openSegment.Offset + buffer.Length, buffer2.Length);
+            ArraySegment<byte> sendBuffer = SendBufferHelper.Close(buffer.Length + buffer2.Length);
+
             Send(sendBuffer);
+            //Send(sendBuff);
         }
 
         public override void OnDisconnected(EndPoint endPoint)

@@ -16,7 +16,7 @@ namespace ServerCore
         RecvBuffer _recvBuffer = new RecvBuffer(1024);
 
         object _lock = new object();
-        Queue<byte[]> _sendQueue = new Queue<byte[]>();
+        Queue<ArraySegment<byte>> _sendQueue = new Queue<ArraySegment<byte>>();
         List<ArraySegment<byte>> _pendingList = new List<ArraySegment<byte>>();
         SocketAsyncEventArgs _sendArgs = new SocketAsyncEventArgs();
         SocketAsyncEventArgs _recvArgs = new SocketAsyncEventArgs();
@@ -37,7 +37,7 @@ namespace ServerCore
             RegisterRecv();
         }
 
-        public void Send(byte[] sendBuff) // 멀티스레드 환경에서 사용 -> 전역 번수들 오염 주의
+        public void Send(ArraySegment<byte> sendBuff) // 멀티스레드 환경에서 사용 -> 전역 번수들 오염 주의
         {
             lock (_lock)
             {
@@ -64,8 +64,8 @@ namespace ServerCore
         {
             while (_sendQueue.Count > 0)
             {
-                byte[] buff = _sendQueue.Dequeue();
-                _pendingList.Add(new ArraySegment<byte>(buff, 0, buff.Length));
+                ArraySegment<byte> buff = _sendQueue.Dequeue();
+                _pendingList.Add(buff);
                 /* 매번 하나의 버퍼보단, 리스트로 만들어 한번에 보내주자
                 _sendArgs.SetBuffer(buff, 0, buff.Length);*/
             }
