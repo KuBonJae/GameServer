@@ -5,36 +5,32 @@ using System.Net.Sockets;
 using System.Runtime.Intrinsics.Arm;
 using System.Text;
 using System.Threading;
+using static DummyClient.GameSession;
 
 namespace DummyClient
 {
     class GameSession : Session
     {
-        public class Knight
+        public class Packet
         {
-            public int hp;
-            public int attack;
+            public ushort size;
+            public ushort packetID;
         }
 
         public override void OnConnected(EndPoint endPoint)
         {
             Console.WriteLine($"OnConnected bytes : {endPoint}");
 
-            // 보낸다
-            // Temp
-            //byte[] sendBuff = Encoding.UTF8.GetBytes("Hello Server!");
-            //
-            Knight knight = new Knight() { hp = 100, attack = 10 };
+            Packet packet = new Packet() { size = 4, packetID = 7 };
 
             ArraySegment<byte> openSegment = SendBufferHelper.Open(4096);
-            byte[] buffer = BitConverter.GetBytes(knight.hp);
-            byte[] buffer2 = BitConverter.GetBytes(knight.attack);
+            byte[] buffer = BitConverter.GetBytes(packet.size);
+            byte[] buffer2 = BitConverter.GetBytes(packet.packetID);
             Array.Copy(buffer, 0, openSegment.Array, openSegment.Offset, buffer.Length);
             Array.Copy(buffer2, 0, openSegment.Array, openSegment.Offset + buffer.Length, buffer2.Length);
-            ArraySegment<byte> sendBuffer = SendBufferHelper.Close(buffer.Length + buffer2.Length);
+            ArraySegment<byte> sendBuffer = SendBufferHelper.Close(packet.size);
 
             Send(sendBuffer);
-            //Send(sendBuff);
         }
 
         public override void OnDisconnected(EndPoint endPoint)
