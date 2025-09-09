@@ -5,55 +5,11 @@ using System.Net.Sockets;
 using System.Runtime.Intrinsics.Arm;
 using System.Text;
 using System.Threading;
-using static DummyClient.GameSession;
 
 namespace DummyClient
 {
-    class GameSession : Session
-    {
-        public class Packet
-        {
-            public ushort size;
-            public ushort packetID;
-        }
-
-        public override void OnConnected(EndPoint endPoint)
-        {
-            Console.WriteLine($"OnConnected bytes : {endPoint}");
-
-            Packet packet = new Packet() { size = 4, packetID = 7 };
-
-            ArraySegment<byte> openSegment = SendBufferHelper.Open(4096);
-            byte[] buffer = BitConverter.GetBytes(packet.size);
-            byte[] buffer2 = BitConverter.GetBytes(packet.packetID);
-            Array.Copy(buffer, 0, openSegment.Array, openSegment.Offset, buffer.Length);
-            Array.Copy(buffer2, 0, openSegment.Array, openSegment.Offset + buffer.Length, buffer2.Length);
-            ArraySegment<byte> sendBuffer = SendBufferHelper.Close(packet.size);
-
-            Send(sendBuffer);
-        }
-
-        public override void OnDisconnected(EndPoint endPoint)
-        {
-            Console.WriteLine($"OnDisconnected bytes : {endPoint}");
-        }
-
-        public override int OnRecv(ArraySegment<byte> buffer)
-        {
-            string recvData = Encoding.UTF8.GetString(buffer.Array, buffer.Offset, buffer.Count);
-            Console.WriteLine($"[From Server] : {recvData}");
-            return buffer.Count;
-        }
-
-        public override void OnSend(int numOfBytes)
-        {
-            Console.WriteLine($"Transfered bytes : {numOfBytes}");
-        }
-    }
-
     class Program
     {
-
         static void Main(string[] args)
         {
             // DNS (Domain Name System) -> 서버의 주소 (172.1.2.3) 를 도메인 이름으로 치환 (www.domain.com)
@@ -63,7 +19,7 @@ namespace DummyClient
             IPEndPoint endPoint = new IPEndPoint(ipAddr, 7777);
 
             Connector connector = new Connector();
-            connector.Connect(endPoint, () => { return new GameSession(); });
+            connector.Connect(endPoint, () => { return new ServerSession(); });
 
             while(true)
             {
