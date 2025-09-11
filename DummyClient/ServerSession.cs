@@ -8,21 +8,59 @@ using System.Threading.Tasks;
 
 namespace DummyClient
 {
-    public class Packet
+    public abstract class Packet
     {
         public ushort size;
         public ushort packetID;
+
+        public abstract ArraySegment<byte> Write();
+        public abstract void Read(ArraySegment<byte> s);
     }
 
     class PlayerInfoReq : Packet
     {
         public long playerID;
-    }
 
-    class PlayerInfoOk : Packet
-    {
-        public int hp;
-        public int attack;
+        public PlayerInfoReq()
+        {
+            this.packetID = (ushort)PacketID.PlayerInfoReq;
+        }
+
+        public override void Read(ArraySegment<byte> s)
+        {
+            ushort count = 0;
+
+            //ushort size = BitConverter.ToUInt16(s.Array, s.Offset);
+            count += 2;
+            //ushort id = BitConverter.ToUInt16(s.Array, s.Offset + count);
+            count += 2;
+
+            this.playerID = BitConverter.ToInt64(new ReadOnlySpan<byte>(s.Array, s.Offset + count, s.Count - count));
+            count += 8;
+        }
+
+        public override ArraySegment<byte> Write()
+        {
+            ArraySegment<byte> openSegment = SendBufferHelper.Open(4096);
+
+            ushort count = 0;
+            // 1. GetByte 다른 버전
+            bool success = true;
+            // 사이즈 크기는 마지막까지 체크하고 확인해야 함
+            //success &= BitConverter.TryWriteBytes(new Span<byte>(openSegment.Array, openSegment.Offset, openSegment.Count), packet.size);
+            count += 2;
+            success &= BitConverter.TryWriteBytes(new Span<byte>(openSegment.Array, openSegment.Offset + count, openSegment.Count - count), this.packetID);
+            count += 2;
+            success &= BitConverter.TryWriteBytes(new Span<byte>(openSegment.Array, openSegment.Offset + count, openSegment.Count - count), this.playerID);
+            count += 8;
+
+            success &= BitConverter.TryWriteBytes(new Span<byte>(openSegment.Array, openSegment.Offset, openSegment.Count), count);
+
+            if (!success)
+                return null;
+
+            return SendBufferHelper.Close(count);
+        }
     }
 
     public enum PacketID
@@ -44,26 +82,12 @@ namespace DummyClient
         {
             Console.WriteLine($"OnConnected bytes : {endPoint}");
 
-            PlayerInfoReq packet = new PlayerInfoReq() { packetID = (ushort)PacketID.PlayerInfoReq, playerID = 1001 };
+            PlayerInfoReq packet = new PlayerInfoReq() { playerID = 1001 };
 
-            ArraySegment<byte> openSegment = SendBufferHelper.Open(4096);
+            ArraySegment<byte> s = packet.Write();
 
-            ushort count = 0;
-            // 1. GetByte 다른 버전
-            bool success = true;
-            // 사이즈 크기는 마지막까지 체크하고 확인해야 함
-            //success &= BitConverter.TryWriteBytes(new Span<byte>(openSegment.Array, openSegment.Offset, openSegment.Count), packet.size);
-            count += 2;
-            success &= BitConverter.TryWriteBytes(new Span<byte>(openSegment.Array, openSegment.Offset + count, openSegment.Count - count), packet.packetID);
-            count += 2;
-            success &= BitConverter.TryWriteBytes(new Span<byte>(openSegment.Array, openSegment.Offset + count, openSegment.Count - count), packet.playerID);
-            count += 8;
-
-            success &= BitConverter.TryWriteBytes(new Span<byte>(openSegment.Array, openSegment.Offset, openSegment.Count), count);
-
-            ArraySegment<byte> sendBuffer = SendBufferHelper.Close(count);
-
-            Send(sendBuffer);
+            if(s != null)
+                Send(s);
         }
 
         public override void OnDisconnected(EndPoint endPoint)
