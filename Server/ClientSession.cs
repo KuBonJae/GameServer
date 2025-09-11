@@ -20,23 +20,31 @@ namespace Server
     class PlayerInfoReq : Packet
     {
         public long playerID;
+        public string name;
 
         public PlayerInfoReq()
         {
             this.packetID = (ushort)PacketID.PlayerInfoReq;
         }
 
-        public override void Read(ArraySegment<byte> s)
+        public override void Read(ArraySegment<byte> segment)
         {
             ushort count = 0;
 
-            //ushort size = BitConverter.ToUInt16(s.Array, s.Offset);
-            count += 2;
-            //ushort id = BitConverter.ToUInt16(s.Array, s.Offset + count);
-            count += 2;
+            ReadOnlySpan<byte> s = new ReadOnlySpan<byte>(segment.Array, segment.Offset, segment.Count);
 
-            this.playerID = BitConverter.ToInt64(new ReadOnlySpan<byte>(s.Array, s.Offset + count, s.Count - count));
-            count += 8;
+            //ushort size = BitConverter.ToUInt16(s.Array, s.Offset);
+            count += sizeof(ushort);
+            //ushort id = BitConverter.ToUInt16(s.Array, s.Offset + count);
+            count += sizeof(ushort);
+
+            this.playerID = BitConverter.ToInt64(s.Slice(count, s.Length - count));
+            count += sizeof(long);
+
+            // string
+            ushort nameLen = BitConverter.ToUInt16(s.Slice(count, s.Length - count));
+            count += sizeof(ushort);
+            this.name = Encoding.Unicode.GetString(s.Slice(count, nameLen));
         }
 
         public override ArraySegment<byte> Write()
@@ -46,15 +54,25 @@ namespace Server
             ushort count = 0;
             // 1. GetByte 다른 버전
             bool success = true;
-            // 사이즈 크기는 마지막까지 체크하고 확인해야 함
-            //success &= BitConverter.TryWriteBytes(new Span<byte>(openSegment.Array, openSegment.Offset, openSegment.Count), packet.size);
-            count += 2;
-            success &= BitConverter.TryWriteBytes(new Span<byte>(openSegment.Array, openSegment.Offset + count, openSegment.Count - count), this.packetID);
-            count += 2;
-            success &= BitConverter.TryWriteBytes(new Span<byte>(openSegment.Array, openSegment.Offset + count, openSegment.Count - count), this.playerID);
-            count += 8;
 
-            success &= BitConverter.TryWriteBytes(new Span<byte>(openSegment.Array, openSegment.Offset, openSegment.Count), count);
+            Span<byte> span = new Span<byte>(openSegment.Array, openSegment.Offset, openSegment.Count);
+
+            count += sizeof(ushort);
+            success &= BitConverter.TryWriteBytes(span.Slice(count, span.Length - count), this.packetID);
+            count += sizeof(ushort);
+            success &= BitConverter.TryWriteBytes(span.Slice(count, span.Length - count), this.playerID);
+            count += sizeof(long);
+
+            // string -> 유니티는 일단 UTF-16이 기본
+            // string의 length를 2 byte -> string 전달
+            ushort nameLen = (ushort)Encoding.Unicode.GetByteCount(this.name);
+            success &= BitConverter.TryWriteBytes(span.Slice(count, span.Length - count), nameLen);
+            count += sizeof(ushort);
+            Array.Copy(Encoding.Unicode.GetBytes(this.name), 0, openSegment.Array, count, nameLen);
+            count += nameLen;
+
+            // 사이즈 크기는 마지막까지 체크하고 확인해야 함
+            success &= BitConverter.TryWriteBytes(span, count);
 
             if (!success)
                 return null;
@@ -103,7 +121,7 @@ namespace Server
                 case PacketID.PlayerInfoReq:
                     PlayerInfoReq p = new PlayerInfoReq();
                     p.Read(buffer);
-                    Console.WriteLine($"PlayerInfoReq : {p.playerID}");
+                    Console.WriteLine($"PlayerInfoReq : {p.playerID} / {p.name}");
                     break;
 
                 case PacketID.PlayerinfoOk:
