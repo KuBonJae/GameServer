@@ -8,121 +8,129 @@ using System.Threading.Tasks;
 
 namespace Server
 {
-    public abstract class Packet
-    {
-        public ushort size;
-        public ushort packetID;
 
-        public abstract ArraySegment<byte> Write();
-        public abstract void Read(ArraySegment<byte> s);
-    }
-
-    class PlayerInfoReq : Packet
+    class PlayerInfoReq
     {
-        public long playerID;
+
+        public long playerId;
+
+
         public string name;
 
-        public struct SkillInfo
+
+        public struct Skill
         {
+
             public int id;
+
+
             public short level;
+
+
             public float duration;
+
+
+            public void Read(ReadOnlySpan<byte> s, ref ushort count)
+            {
+
+                this.id = BitConverter.ToInt32(s.Slice(count, s.Length - count));
+                count += sizeof(int);
+
+
+                this.level = BitConverter.ToInt16(s.Slice(count, s.Length - count));
+                count += sizeof(short);
+
+
+                this.duration = BitConverter.ToSingle(s.Slice(count, s.Length - count));
+                count += sizeof(float);
+
+            }
 
             public bool Write(Span<byte> s, ref ushort count)
             {
                 bool success = true;
+
                 success &= BitConverter.TryWriteBytes(s.Slice(count, s.Length - count), this.id);
                 count += sizeof(int);
+
+
                 success &= BitConverter.TryWriteBytes(s.Slice(count, s.Length - count), this.level);
                 count += sizeof(short);
+
+
                 success &= BitConverter.TryWriteBytes(s.Slice(count, s.Length - count), this.duration);
                 count += sizeof(float);
 
-                return true;
-            }
 
-            public void Read(ReadOnlySpan<byte> s, ref ushort count)
-            {
-                this.id = BitConverter.ToInt32(s.Slice(count, s.Length - count));
-                count += sizeof(int);
-                this.level = BitConverter.ToInt16(s.Slice(count, s.Length - count));
-                count += sizeof(short);
-                this.duration = BitConverter.ToSingle(s.Slice(count, s.Length - count));
-                count += sizeof(float);
+                return success;
             }
         }
 
-        public List<SkillInfo> skills = new List<SkillInfo>();
+        public List<Skill> skills = new List<Skill>();
 
-        public PlayerInfoReq()
-        {
-            this.packetID = (ushort)PacketID.PlayerInfoReq;
-        }
 
-        public override void Read(ArraySegment<byte> segment)
+        public void Read(ArraySegment<byte> segment)
         {
             ushort count = 0;
 
             ReadOnlySpan<byte> s = new ReadOnlySpan<byte>(segment.Array, segment.Offset, segment.Count);
-
-            //ushort size = BitConverter.ToUInt16(s.Array, s.Offset);
             count += sizeof(ushort);
-            //ushort id = BitConverter.ToUInt16(s.Array, s.Offset + count);
             count += sizeof(ushort);
 
-            this.playerID = BitConverter.ToInt64(s.Slice(count, s.Length - count));
+            this.playerId = BitConverter.ToInt64(s.Slice(count, s.Length - count));
             count += sizeof(long);
 
-            // string
+
             ushort nameLen = BitConverter.ToUInt16(s.Slice(count, s.Length - count));
             count += sizeof(ushort);
             this.name = Encoding.Unicode.GetString(s.Slice(count, nameLen));
             count += nameLen;
 
-            // skill list
+
+            this.skills.Clear();
             ushort skillLen = BitConverter.ToUInt16(s.Slice(count, s.Length - count));
             count += sizeof(ushort);
             for (int i = 0; i < skillLen; i++)
             {
-                SkillInfo skill = new SkillInfo();
+                Skill skill = new Skill();
                 skill.Read(s, ref count);
                 skills.Add(skill);
             }
+
         }
 
-        public override ArraySegment<byte> Write()
+        public ArraySegment<byte> Write()
         {
             ArraySegment<byte> openSegment = SendBufferHelper.Open(4096);
-
             ushort count = 0;
-            // 1. GetByte 다른 버전
             bool success = true;
 
-            Span<byte> span = new Span<byte>(openSegment.Array, openSegment.Offset, openSegment.Count);
+            Span<byte> s = new Span<byte>(openSegment.Array, openSegment.Offset, openSegment.Count);
 
             count += sizeof(ushort);
-            success &= BitConverter.TryWriteBytes(span.Slice(count, span.Length - count), this.packetID);
+            success &= BitConverter.TryWriteBytes(s.Slice(count, s.Length - count), (ushort)PacketID.PlayerInfoReq);
             count += sizeof(ushort);
-            success &= BitConverter.TryWriteBytes(span.Slice(count, span.Length - count), this.playerID);
+
+
+            success &= BitConverter.TryWriteBytes(s.Slice(count, s.Length - count), this.playerId);
             count += sizeof(long);
 
-            // string -> 유니티는 일단 UTF-16이 기본
-            // string의 length를 2 byte -> string 전달
+
             ushort nameLen = (ushort)Encoding.Unicode.GetBytes(this.name, 0, this.name.Length, openSegment.Array, openSegment.Offset + count + sizeof(ushort));
-            success &= BitConverter.TryWriteBytes(span.Slice(count, span.Length - count), nameLen);
+            success &= BitConverter.TryWriteBytes(s.Slice(count, s.Length - count), nameLen);
             count += sizeof(ushort);
             count += nameLen;
 
-            // skill List
-            success &= BitConverter.TryWriteBytes(span.Slice(count, span.Length - count), (ushort)skills.Count);
+
+            success &= BitConverter.TryWriteBytes(s.Slice(count, s.Length - count), (ushort)this.skills.Count);
             count += sizeof(ushort);
-            foreach (SkillInfo skillInfo in skills)
+            foreach (Skill skill in this.skills)
             {
-                success &= skillInfo.Write(span, ref count);
+                success &= skill.Write(s, ref count);
             }
 
-            // 사이즈 크기는 마지막까지 체크하고 확인해야 함
-            success &= BitConverter.TryWriteBytes(span, count);
+
+            success &= BitConverter.TryWriteBytes(s, count);
 
             if (!success)
                 return null;
@@ -130,6 +138,7 @@ namespace Server
             return SendBufferHelper.Close(count);
         }
     }
+
 
     public enum PacketID
     {
@@ -171,9 +180,9 @@ namespace Server
                 case PacketID.PlayerInfoReq:
                     PlayerInfoReq p = new PlayerInfoReq();
                     p.Read(buffer);
-                    Console.WriteLine($"PlayerInfoReq : {p.playerID} / {p.name}");
+                    Console.WriteLine($"PlayerInfoReq : {p.playerId} / {p.name}");
 
-                    foreach(PlayerInfoReq.SkillInfo skill in p.skills)
+                    foreach(PlayerInfoReq.Skill skill in p.skills)
                     {
                         Console.WriteLine($"Skill {skill.id} / {skill.level} / {skill.duration}");
                     }
