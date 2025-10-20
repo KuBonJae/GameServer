@@ -51,7 +51,7 @@ namespace Server
 
                     break;
 
-                case PacketID.PlayerinfoOk:
+                case PacketID.Test:
 
                     break;
             }

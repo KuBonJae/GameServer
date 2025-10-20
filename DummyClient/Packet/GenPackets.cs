@@ -75,11 +75,11 @@ class PlayerInfoReq
 
     public ArraySegment<byte> Write()
     {
-        ArraySegment<byte> openSegment = SendBufferHelper.Open(4096);
+        ArraySegment<byte> segment = SendBufferHelper.Open(4096);
         ushort count = 0;
         bool success = true;
 
-        Span<byte> s = new Span<byte>(openSegment.Array, openSegment.Offset, openSegment.Count);
+        Span<byte> s = new Span<byte>(segment.Array, segment.Offset, segment.Count);
 
         count += sizeof(ushort);
         success &= BitConverter.TryWriteBytes(s.Slice(count, s.Length - count), (ushort)PacketID.PlayerInfoReq);
@@ -127,11 +127,11 @@ class Test
 
     public ArraySegment<byte> Write()
     {
-        ArraySegment<byte> openSegment = SendBufferHelper.Open(4096);
+        ArraySegment<byte> segment = SendBufferHelper.Open(4096);
         ushort count = 0;
         bool success = true;
 
-        Span<byte> s = new Span<byte>(openSegment.Array, openSegment.Offset, openSegment.Count);
+        Span<byte> s = new Span<byte>(segment.Array, segment.Offset, segment.Count);
 
         count += sizeof(ushort);
         success &= BitConverter.TryWriteBytes(s.Slice(count, s.Length - count), (ushort)PacketID.Test);
